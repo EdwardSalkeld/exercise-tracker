@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/EdwardSalkeld/workout-service/internal/api"
-	"github.com/EdwardSalkeld/workout-service/internal/config"
-	"github.com/EdwardSalkeld/workout-service/internal/store/postgres"
+	"github.com/EdwardSalkeld/exercise-tracker/internal/api"
+	"github.com/EdwardSalkeld/exercise-tracker/internal/config"
+	"github.com/EdwardSalkeld/exercise-tracker/internal/store/postgres"
 )
 
 func main() {

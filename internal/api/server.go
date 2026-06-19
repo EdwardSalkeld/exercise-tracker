@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/EdwardSalkeld/workout-service/internal/model"
+	"github.com/EdwardSalkeld/exercise-tracker/internal/model"
 )
 
 var errNotFound = errors.New("not found")

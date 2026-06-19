@@ -1,4 +1,4 @@
 bin/
 .env
 .DS_Store
-/workout-service
+/exercise-tracker

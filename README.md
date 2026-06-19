@@ -48,10 +48,10 @@ row, and return the replacement run.
 
 Environment variables:
 
-- `WORKOUT_SERVICE_DATABASE_URL` required, Postgres connection string
-- `WORKOUT_SERVICE_LISTEN_ADDR` optional, default `:8080`
-- `WORKOUT_SERVICE_READ_TIMEOUT` optional duration, default `5s`
-- `WORKOUT_SERVICE_WRITE_TIMEOUT` optional duration, default `10s`
+- `EXERCISE_TRACKER_DATABASE_URL` required, Postgres connection string
+- `EXERCISE_TRACKER_LISTEN_ADDR` optional, default `:8080`
+- `EXERCISE_TRACKER_READ_TIMEOUT` optional duration, default `5s`
+- `EXERCISE_TRACKER_WRITE_TIMEOUT` optional duration, default `10s`
 
 ## Local Run
 
@@ -65,15 +65,15 @@ Apply the initial schema:
 
 ```sh
 for migration in sql/migrations/*.sql; do
-  psql "$WORKOUT_SERVICE_DATABASE_URL" -f "$migration"
+  psql "$EXERCISE_TRACKER_DATABASE_URL" -f "$migration"
 done
 ```
 
 Run the service:
 
 ```sh
-export WORKOUT_SERVICE_DATABASE_URL=postgres://workout:workout@127.0.0.1:5432/workout_service?sslmode=disable
-go run ./cmd/workout-service
+export EXERCISE_TRACKER_DATABASE_URL=postgres://workout:workout@127.0.0.1:5432/exercise_tracker?sslmode=disable
+go run ./cmd/exercise-tracker
 ```
 
 Run formatting and tests:
