@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/EdwardSalkeld/workout-service/internal/model"
+	"github.com/EdwardSalkeld/exercise-tracker/internal/model"
 )
 
 type fakeStore struct {

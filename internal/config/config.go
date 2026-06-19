@@ -6,10 +6,10 @@ import (
 )
 
 const (
-	DatabaseURLEnv  = "WORKOUT_SERVICE_DATABASE_URL"
-	ListenAddrEnv   = "WORKOUT_SERVICE_LISTEN_ADDR"
-	ReadTimeoutEnv  = "WORKOUT_SERVICE_READ_TIMEOUT"
-	WriteTimeoutEnv = "WORKOUT_SERVICE_WRITE_TIMEOUT"
+	DatabaseURLEnv  = "EXERCISE_TRACKER_DATABASE_URL"
+	ListenAddrEnv   = "EXERCISE_TRACKER_LISTEN_ADDR"
+	ReadTimeoutEnv  = "EXERCISE_TRACKER_READ_TIMEOUT"
+	WriteTimeoutEnv = "EXERCISE_TRACKER_WRITE_TIMEOUT"
 )
 
 type Config struct {

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EdwardSalkeld/workout-service/internal/api"
-	"github.com/EdwardSalkeld/workout-service/internal/model"
+	"github.com/EdwardSalkeld/exercise-tracker/internal/api"
+	"github.com/EdwardSalkeld/exercise-tracker/internal/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

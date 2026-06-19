@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_DB: workout_service
+      POSTGRES_DB: exercise_tracker
       POSTGRES_USER: workout
       POSTGRES_PASSWORD: workout
     ports:
