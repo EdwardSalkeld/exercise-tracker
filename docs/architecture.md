@@ -1,8 +1,8 @@
-# Workout Service v1
+# Exercise Tracker v1
 
 ## Goal
 
-Extract workout storage and query access into a dedicated Go service backed by
+Extract session storage and query access into a dedicated Go service backed by
 Postgres, while keeping the first implementation small enough to start using and
 reviewing immediately.
 
@@ -10,8 +10,8 @@ reviewing immediately.
 
 - Direct HTTP API with reads plus simple create endpoints
 - Canonical relational schema for:
-  - workouts
-  - workout exercises
+  - sessions
+  - session exercises
   - exercise sets
   - runs
   - run points
@@ -20,10 +20,10 @@ reviewing immediately.
 
 ## Why The First Write Cut Stays Simple
 
-The current `workout-data` repo has a clear query surface already:
+The current SQLite exercise data tooling already has a clear query surface:
 
-- recent workouts
-- workout summary/detail
+- recent sessions
+- session summary/detail
 - exercise history
 - runs and run points
 
@@ -35,7 +35,7 @@ What is still not fully settled is the long-term write path:
 
 The first write cut therefore stays deliberately narrow:
 
-- direct `POST /v1/workouts` with nested exercises and sets
+- direct `POST /v1/sessions` with nested exercises and sets
 - direct `POST /v1/runs` with optional run points
 - no auth, queueing, importer-specific endpoints, or update/delete semantics yet
 
@@ -46,8 +46,8 @@ locking the later importer story too early.
 
 1. Should the long-term write path be service-native ingestion endpoints, or
    should imports stay in a separate worker that writes to Postgres?
-2. Do we want one canonical workout model only, or should the service preserve
-   a distinction between text-imported workouts and API-backed workouts?
+2. Do we want one canonical session model only, or should the service preserve
+   a distinction between text-imported sessions and API-backed sessions?
 3. Should run GPS points stay inline in Postgres long-term, or move to a
    separate store if route volume grows materially?
 4. Should auth be required from day one, or is private-network access enough for

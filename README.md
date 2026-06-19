@@ -1,26 +1,26 @@
-# Workout Service
+# Exercise Tracker
 
 Go HTTP service for exercise data backed by Postgres.
 
-This is the first cut of moving `workout-data` away from direct local SQLite
-access and into its own service. The v1 scope is intentionally narrow:
+This is the first cut of moving the existing SQLite-backed exercise data
+tooling behind its own service. The v1 scope is intentionally narrow:
 
-- Postgres-backed canonical tables for workouts, exercise sets, runs, and run points
-- Simple API for recent workouts, workout detail, exercise history, recent runs, run detail, and direct creates
+- Postgres-backed canonical tables for sessions, exercise sets, runs, and run points
+- Simple API for recent sessions, session detail, exercise history, recent runs, run detail, and direct creates
 - Health endpoint that also checks database reachability
 
 The initial write surface is deliberately direct and private-network friendly:
-nested POST requests for workouts and runs, without auth, background jobs, or
+nested POST requests for sessions and runs, without auth, background jobs, or
 import-specific abstractions yet.
 
 ## Endpoints
 
 - `GET /healthz`
-- `GET /v1/workouts?limit=20`
-- `GET /v1/workouts/{id}`
-- `POST /v1/workouts`
-- `PUT /v1/workouts/{id}`
-- `DELETE /v1/workouts/{id}`
+- `GET /v1/sessions?limit=20`
+- `GET /v1/sessions/{id}`
+- `POST /v1/sessions`
+- `PUT /v1/sessions/{id}`
+- `DELETE /v1/sessions/{id}`
 - `GET /v1/exercises/{baseName}/history?limit=50`
 - `GET /v1/runs?limit=20`
 - `GET /v1/runs/{id}`
@@ -30,13 +30,13 @@ import-specific abstractions yet.
 
 ## Write Payloads
 
-`POST /v1/workouts` accepts the top-level workout fields plus nested
+`POST /v1/sessions` accepts the top-level session fields plus nested
 `exercises` and `sets`. `order_index` and `set_number` are optional; if omitted
 they are assigned sequentially.
 
-`PUT /v1/workouts/{id}` uses a delete-and-recreate flow: the existing workout is
-soft-deleted and a new workout row is created from the supplied payload. The
-response contains the replacement workout with its new ID.
+`PUT /v1/sessions/{id}` uses a delete-and-recreate flow: the existing session is
+soft-deleted and a new session row is created from the supplied payload. The
+response contains the replacement session with its new ID.
 
 `POST /v1/runs` accepts the canonical run fields plus optional nested `points`.
 `point_index` is optional and is also assigned sequentially when omitted.
@@ -48,10 +48,10 @@ row, and return the replacement run.
 
 Environment variables:
 
-- `WORKOUT_SERVICE_DATABASE_URL` required, Postgres connection string
-- `WORKOUT_SERVICE_LISTEN_ADDR` optional, default `:8080`
-- `WORKOUT_SERVICE_READ_TIMEOUT` optional duration, default `5s`
-- `WORKOUT_SERVICE_WRITE_TIMEOUT` optional duration, default `10s`
+- `EXERCISE_TRACKER_DATABASE_URL` required, Postgres connection string
+- `EXERCISE_TRACKER_LISTEN_ADDR` optional, default `:8080`
+- `EXERCISE_TRACKER_READ_TIMEOUT` optional duration, default `5s`
+- `EXERCISE_TRACKER_WRITE_TIMEOUT` optional duration, default `10s`
 
 ## Local Run
 
@@ -65,15 +65,15 @@ Apply the initial schema:
 
 ```sh
 for migration in sql/migrations/*.sql; do
-  psql "$WORKOUT_SERVICE_DATABASE_URL" -f "$migration"
+  psql "$EXERCISE_TRACKER_DATABASE_URL" -f "$migration"
 done
 ```
 
-Run the service:
+Run the exercise tracker:
 
 ```sh
-export WORKOUT_SERVICE_DATABASE_URL=postgres://workout:workout@127.0.0.1:5432/workout_service?sslmode=disable
-go run ./cmd/workout-service
+export EXERCISE_TRACKER_DATABASE_URL=postgres://exercise_tracker:exercise_tracker@127.0.0.1:5432/exercise_tracker?sslmode=disable
+go run ./cmd/exercise-tracker
 ```
 
 Run formatting and tests:
@@ -86,7 +86,8 @@ go test ./...
 
 ## Notes
 
-- The schema is shaped for migration from the current `workout-data` tables, but
+- The schema is shaped for migration from the current SQLite exercise data
+  tables, but
   does not try to preserve every import-stage artifact.
 - `source_type`, `source_ref`, `external_id`, and `raw_payload` are included so
   we can retain provenance from Hevy text imports, Hevy API sync, and FIT runs.

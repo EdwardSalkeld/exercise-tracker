@@ -10,19 +10,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/EdwardSalkeld/workout-service/internal/model"
+	"github.com/EdwardSalkeld/exercise-tracker/internal/model"
 )
 
 type fakeStore struct {
 	healthErr         error
-	workouts          []model.WorkoutSummary
-	workout           model.WorkoutDetail
-	workoutErr        error
-	updatedWorkout    model.WorkoutDetail
-	updatedWorkoutErr error
-	deletedWorkoutErr error
-	createdWorkout    model.WorkoutDetail
-	createdWorkoutErr error
+	sessions          []model.SessionSummary
+	session           model.SessionDetail
+	sessionErr        error
+	updatedSession    model.SessionDetail
+	updatedSessionErr error
+	deletedSessionErr error
+	createdSession    model.SessionDetail
+	createdSessionErr error
 	history           []model.ExerciseHistoryItem
 	historyErr        error
 	runs              []model.RunSummary
@@ -36,16 +36,16 @@ type fakeStore struct {
 }
 
 func (f fakeStore) HealthCheck(context.Context) error { return f.healthErr }
-func (f fakeStore) ListWorkouts(context.Context, int) ([]model.WorkoutSummary, error) {
-	return f.workouts, nil
+func (f fakeStore) ListSessions(context.Context, int) ([]model.SessionSummary, error) {
+	return f.sessions, nil
 }
-func (f fakeStore) GetWorkout(context.Context, int64) (model.WorkoutDetail, error) {
-	return f.workout, f.workoutErr
+func (f fakeStore) GetSession(context.Context, int64) (model.SessionDetail, error) {
+	return f.session, f.sessionErr
 }
-func (f fakeStore) UpdateWorkout(context.Context, int64, model.WorkoutCreate) (model.WorkoutDetail, error) {
-	return f.updatedWorkout, f.updatedWorkoutErr
+func (f fakeStore) UpdateSession(context.Context, int64, model.SessionCreate) (model.SessionDetail, error) {
+	return f.updatedSession, f.updatedSessionErr
 }
-func (f fakeStore) DeleteWorkout(context.Context, int64) error { return f.deletedWorkoutErr }
+func (f fakeStore) DeleteSession(context.Context, int64) error { return f.deletedSessionErr }
 func (f fakeStore) ExerciseHistory(context.Context, string, int) ([]model.ExerciseHistoryItem, error) {
 	return f.history, f.historyErr
 }
@@ -59,8 +59,8 @@ func (f fakeStore) UpdateRun(context.Context, int64, model.RunCreate) (model.Run
 	return f.updatedRun, f.updatedRunErr
 }
 func (f fakeStore) DeleteRun(context.Context, int64) error { return f.deletedRunErr }
-func (f fakeStore) CreateWorkout(context.Context, model.WorkoutCreate) (model.WorkoutDetail, error) {
-	return f.createdWorkout, f.createdWorkoutErr
+func (f fakeStore) CreateSession(context.Context, model.SessionCreate) (model.SessionDetail, error) {
+	return f.createdSession, f.createdSessionErr
 }
 func (f fakeStore) CreateRun(context.Context, model.RunCreate) (model.RunDetail, error) {
 	return f.createdRun, f.createdRunErr
@@ -80,11 +80,11 @@ func TestHealthz(t *testing.T) {
 	}
 }
 
-func TestWorkoutNotFound(t *testing.T) {
+func TestSessionNotFound(t *testing.T) {
 	t.Parallel()
 
-	server := NewServer(fakeStore{workoutErr: errNotFound})
-	request := httptest.NewRequest(http.MethodGet, "/v1/workouts/42", nil)
+	server := NewServer(fakeStore{sessionErr: errNotFound})
+	request := httptest.NewRequest(http.MethodGet, "/v1/sessions/42", nil)
 	recorder := httptest.NewRecorder()
 
 	server.Handler().ServeHTTP(recorder, request)
@@ -101,9 +101,9 @@ func TestExerciseHistory(t *testing.T) {
 	server := NewServer(fakeStore{
 		history: []model.ExerciseHistoryItem{
 			{
-				WorkoutID:        7,
-				WorkoutTitle:     "Upper",
-				WorkoutStartedAt: startedAt,
+				SessionID:        7,
+				SessionTitle:     "Upper",
+				SessionStartedAt: startedAt,
 				DisplayName:      "Lat Pulldown",
 				SetNumber:        1,
 			},
@@ -141,13 +141,13 @@ func TestRunError(t *testing.T) {
 	}
 }
 
-func TestCreateWorkout(t *testing.T) {
+func TestCreateSession(t *testing.T) {
 	t.Parallel()
 
 	startedAt := time.Date(2026, 6, 17, 6, 0, 0, 0, time.UTC)
 	server := NewServer(fakeStore{
-		createdWorkout: model.WorkoutDetail{
-			WorkoutSummary: model.WorkoutSummary{
+		createdSession: model.SessionDetail{
+			SessionSummary: model.SessionSummary{
 				ID:        11,
 				Title:     "Upper",
 				StartedAt: startedAt,
@@ -156,7 +156,7 @@ func TestCreateWorkout(t *testing.T) {
 		},
 	})
 
-	request := httptest.NewRequest(http.MethodPost, "/v1/workouts", strings.NewReader(`{
+	request := httptest.NewRequest(http.MethodPost, "/v1/sessions", strings.NewReader(`{
 		"title":"Upper",
 		"started_at":"2026-06-17T06:00:00Z",
 		"source_type":"manual",
@@ -171,11 +171,11 @@ func TestCreateWorkout(t *testing.T) {
 	}
 }
 
-func TestCreateWorkoutBadJSON(t *testing.T) {
+func TestCreateSessionBadJSON(t *testing.T) {
 	t.Parallel()
 
 	server := NewServer(fakeStore{})
-	request := httptest.NewRequest(http.MethodPost, "/v1/workouts", strings.NewReader(`{"title":"Upper"`))
+	request := httptest.NewRequest(http.MethodPost, "/v1/sessions", strings.NewReader(`{"title":"Upper"`))
 	recorder := httptest.NewRecorder()
 
 	server.Handler().ServeHTTP(recorder, request)
@@ -185,13 +185,13 @@ func TestCreateWorkoutBadJSON(t *testing.T) {
 	}
 }
 
-func TestUpdateWorkout(t *testing.T) {
+func TestUpdateSession(t *testing.T) {
 	t.Parallel()
 
 	startedAt := time.Date(2026, 6, 17, 7, 0, 0, 0, time.UTC)
 	server := NewServer(fakeStore{
-		updatedWorkout: model.WorkoutDetail{
-			WorkoutSummary: model.WorkoutSummary{
+		updatedSession: model.SessionDetail{
+			SessionSummary: model.SessionSummary{
 				ID:        12,
 				Title:     "Upper v2",
 				StartedAt: startedAt,
@@ -200,7 +200,7 @@ func TestUpdateWorkout(t *testing.T) {
 		},
 	})
 
-	request := httptest.NewRequest(http.MethodPut, "/v1/workouts/11", strings.NewReader(`{
+	request := httptest.NewRequest(http.MethodPut, "/v1/sessions/11", strings.NewReader(`{
 		"title":"Upper v2",
 		"started_at":"2026-06-17T07:00:00Z",
 		"source_type":"manual",
@@ -215,11 +215,11 @@ func TestUpdateWorkout(t *testing.T) {
 	}
 }
 
-func TestDeleteWorkout(t *testing.T) {
+func TestDeleteSession(t *testing.T) {
 	t.Parallel()
 
 	server := NewServer(fakeStore{})
-	request := httptest.NewRequest(http.MethodDelete, "/v1/workouts/11", nil)
+	request := httptest.NewRequest(http.MethodDelete, "/v1/sessions/11", nil)
 	recorder := httptest.NewRecorder()
 
 	server.Handler().ServeHTTP(recorder, request)

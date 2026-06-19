@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EdwardSalkeld/workout-service/internal/api"
-	"github.com/EdwardSalkeld/workout-service/internal/model"
+	"github.com/EdwardSalkeld/exercise-tracker/internal/api"
+	"github.com/EdwardSalkeld/exercise-tracker/internal/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -35,64 +35,64 @@ func (s *Store) HealthCheck(ctx context.Context) error {
 	return s.pool.Ping(ctx)
 }
 
-func (s *Store) CreateWorkout(ctx context.Context, input model.WorkoutCreate) (model.WorkoutDetail, error) {
-	if err := validateWorkoutCreate(input); err != nil {
-		return model.WorkoutDetail{}, err
+func (s *Store) CreateSession(ctx context.Context, input model.SessionCreate) (model.SessionDetail, error) {
+	if err := validateSessionCreate(input); err != nil {
+		return model.SessionDetail{}, err
 	}
 
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return model.WorkoutDetail{}, fmt.Errorf("begin workout tx: %w", err)
+		return model.SessionDetail{}, fmt.Errorf("begin session tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	workoutID, err := insertWorkout(ctx, tx, input)
+	sessionID, err := insertSession(ctx, tx, input)
 	if err != nil {
-		return model.WorkoutDetail{}, err
+		return model.SessionDetail{}, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return model.WorkoutDetail{}, fmt.Errorf("commit workout tx: %w", err)
+		return model.SessionDetail{}, fmt.Errorf("commit session tx: %w", err)
 	}
 
-	return s.GetWorkout(ctx, workoutID)
+	return s.GetSession(ctx, sessionID)
 }
 
-func (s *Store) UpdateWorkout(ctx context.Context, id int64, input model.WorkoutCreate) (model.WorkoutDetail, error) {
-	if err := validateWorkoutCreate(input); err != nil {
-		return model.WorkoutDetail{}, err
+func (s *Store) UpdateSession(ctx context.Context, id int64, input model.SessionCreate) (model.SessionDetail, error) {
+	if err := validateSessionCreate(input); err != nil {
+		return model.SessionDetail{}, err
 	}
 
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return model.WorkoutDetail{}, fmt.Errorf("begin workout update tx: %w", err)
+		return model.SessionDetail{}, fmt.Errorf("begin session update tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	if err := softDeleteWorkout(ctx, tx, id); err != nil {
-		return model.WorkoutDetail{}, err
+	if err := softDeleteSession(ctx, tx, id); err != nil {
+		return model.SessionDetail{}, err
 	}
 
-	workoutID, err := insertWorkout(ctx, tx, input)
+	sessionID, err := insertSession(ctx, tx, input)
 	if err != nil {
-		return model.WorkoutDetail{}, err
+		return model.SessionDetail{}, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return model.WorkoutDetail{}, fmt.Errorf("commit workout update tx: %w", err)
+		return model.SessionDetail{}, fmt.Errorf("commit session update tx: %w", err)
 	}
 
-	return s.GetWorkout(ctx, workoutID)
+	return s.GetSession(ctx, sessionID)
 }
 
-func (s *Store) DeleteWorkout(ctx context.Context, id int64) error {
+func (s *Store) DeleteSession(ctx context.Context, id int64) error {
 	tag, err := s.pool.Exec(ctx, `
-		UPDATE workouts
+		UPDATE sessions
 		SET deleted_at = NOW(), updated_at = NOW()
 		WHERE id = $1 AND deleted_at IS NULL
 	`, id)
 	if err != nil {
-		return fmt.Errorf("soft delete workout: %w", err)
+		return fmt.Errorf("soft delete session: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return api.ErrNotFound()
@@ -100,7 +100,7 @@ func (s *Store) DeleteWorkout(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *Store) ListWorkouts(ctx context.Context, limit int) ([]model.WorkoutSummary, error) {
+func (s *Store) ListSessions(ctx context.Context, limit int) ([]model.SessionSummary, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT
 			w.id,
@@ -118,22 +118,22 @@ func (s *Store) ListWorkouts(ctx context.Context, limit int) ([]model.WorkoutSum
 				),
 				0
 			) AS total_volume_kg
-		FROM workouts w
-		LEFT JOIN workout_exercises we ON we.workout_id = w.id
-		LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id
+		FROM sessions w
+		LEFT JOIN session_exercises we ON we.session_id = w.id
+		LEFT JOIN exercise_sets es ON es.session_exercise_id = we.id
 		WHERE w.deleted_at IS NULL
 		GROUP BY w.id
 		ORDER BY w.started_at DESC
 		LIMIT $1
 	`, limit)
 	if err != nil {
-		return nil, fmt.Errorf("query workouts: %w", err)
+		return nil, fmt.Errorf("query sessions: %w", err)
 	}
 	defer rows.Close()
 
-	var items []model.WorkoutSummary
+	var items []model.SessionSummary
 	for rows.Next() {
-		var item model.WorkoutSummary
+		var item model.SessionSummary
 		if err := rows.Scan(
 			&item.ID,
 			&item.Title,
@@ -142,18 +142,18 @@ func (s *Store) ListWorkouts(ctx context.Context, limit int) ([]model.WorkoutSum
 			&item.SetCount,
 			&item.TotalVolumeKG,
 		); err != nil {
-			return nil, fmt.Errorf("scan workout summary: %w", err)
+			return nil, fmt.Errorf("scan session summary: %w", err)
 		}
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate workout summaries: %w", err)
+		return nil, fmt.Errorf("iterate session summaries: %w", err)
 	}
 	return items, nil
 }
 
-func (s *Store) GetWorkout(ctx context.Context, id int64) (model.WorkoutDetail, error) {
-	var workout model.WorkoutDetail
+func (s *Store) GetSession(ctx context.Context, id int64) (model.SessionDetail, error) {
+	var session model.SessionDetail
 	var endedAt sql.NullTime
 	var notes sql.NullString
 	var sourceRef sql.NullString
@@ -180,34 +180,34 @@ func (s *Store) GetWorkout(ctx context.Context, id int64) (model.WorkoutDetail, 
 				),
 				0
 			) AS total_volume_kg
-		FROM workouts w
-		LEFT JOIN workout_exercises we ON we.workout_id = w.id
-		LEFT JOIN exercise_sets es ON es.workout_exercise_id = we.id
+		FROM sessions w
+		LEFT JOIN session_exercises we ON we.session_id = w.id
+		LEFT JOIN exercise_sets es ON es.session_exercise_id = we.id
 		WHERE w.id = $1 AND w.deleted_at IS NULL
 		GROUP BY w.id
 	`, id).Scan(
-		&workout.ID,
-		&workout.Title,
-		&workout.StartedAt,
+		&session.ID,
+		&session.Title,
+		&session.StartedAt,
 		&endedAt,
 		&notes,
-		&workout.SourceType,
+		&session.SourceType,
 		&sourceRef,
 		&externalID,
-		&workout.ExerciseCount,
-		&workout.SetCount,
-		&workout.TotalVolumeKG,
+		&session.ExerciseCount,
+		&session.SetCount,
+		&session.TotalVolumeKG,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return model.WorkoutDetail{}, api.ErrNotFound()
+			return model.SessionDetail{}, api.ErrNotFound()
 		}
-		return model.WorkoutDetail{}, fmt.Errorf("query workout: %w", err)
+		return model.SessionDetail{}, fmt.Errorf("query session: %w", err)
 	}
-	workout.EndedAt = nullTimePtr(endedAt)
-	workout.Notes = nullStringPtr(notes)
-	workout.SourceRef = nullStringPtr(sourceRef)
-	workout.ExternalID = nullStringPtr(externalID)
+	session.EndedAt = nullTimePtr(endedAt)
+	session.Notes = nullStringPtr(notes)
+	session.SourceRef = nullStringPtr(sourceRef)
+	session.ExternalID = nullStringPtr(externalID)
 
 	rows, err := s.pool.Query(ctx, `
 		SELECT
@@ -217,17 +217,17 @@ func (s *Store) GetWorkout(ctx context.Context, id int64) (model.WorkoutDetail, 
 			we.base_name,
 			we.modifier,
 			we.notes
-		FROM workout_exercises we
-		WHERE we.workout_id = $1
+		FROM session_exercises we
+		WHERE we.session_id = $1
 		ORDER BY we.order_index ASC
 	`, id)
 	if err != nil {
-		return model.WorkoutDetail{}, fmt.Errorf("query workout exercises: %w", err)
+		return model.SessionDetail{}, fmt.Errorf("query session exercises: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var exercise model.WorkoutExercise
+		var exercise model.SessionExercise
 		var modifier sql.NullString
 		var notes sql.NullString
 		if err := rows.Scan(
@@ -238,21 +238,21 @@ func (s *Store) GetWorkout(ctx context.Context, id int64) (model.WorkoutDetail, 
 			&modifier,
 			&notes,
 		); err != nil {
-			return model.WorkoutDetail{}, fmt.Errorf("scan workout exercise: %w", err)
+			return model.SessionDetail{}, fmt.Errorf("scan session exercise: %w", err)
 		}
 		exercise.Modifier = nullStringPtr(modifier)
 		exercise.Notes = nullStringPtr(notes)
 		exercise.Sets, err = s.loadExerciseSets(ctx, exercise.ID)
 		if err != nil {
-			return model.WorkoutDetail{}, err
+			return model.SessionDetail{}, err
 		}
-		workout.Exercises = append(workout.Exercises, exercise)
+		session.Exercises = append(session.Exercises, exercise)
 	}
 	if err := rows.Err(); err != nil {
-		return model.WorkoutDetail{}, fmt.Errorf("iterate workout exercises: %w", err)
+		return model.SessionDetail{}, fmt.Errorf("iterate session exercises: %w", err)
 	}
 
-	return workout, nil
+	return session, nil
 }
 
 func (s *Store) loadExerciseSets(ctx context.Context, exerciseID int64) ([]model.ExerciseSet, error) {
@@ -268,7 +268,7 @@ func (s *Store) loadExerciseSets(ctx context.Context, exerciseID int64) ([]model
 			rpe,
 			custom_metric
 		FROM exercise_sets
-		WHERE workout_exercise_id = $1
+		WHERE session_exercise_id = $1
 		ORDER BY set_number ASC
 	`, exerciseID)
 	if err != nil {
@@ -326,9 +326,9 @@ func (s *Store) ExerciseHistory(ctx context.Context, baseName string, limit int)
 			es.weight_kg,
 			es.reps,
 			es.duration_seconds
-		FROM workouts w
-		JOIN workout_exercises we ON we.workout_id = w.id
-		JOIN exercise_sets es ON es.workout_exercise_id = we.id
+		FROM sessions w
+		JOIN session_exercises we ON we.session_id = w.id
+		JOIN exercise_sets es ON es.session_exercise_id = we.id
 		WHERE we.base_name = $1 AND w.deleted_at IS NULL
 		ORDER BY w.started_at DESC, es.set_number ASC
 		LIMIT $2
@@ -346,9 +346,9 @@ func (s *Store) ExerciseHistory(ctx context.Context, baseName string, limit int)
 		var reps sql.NullFloat64
 		var durationSeconds sql.NullFloat64
 		if err := rows.Scan(
-			&item.WorkoutID,
-			&item.WorkoutTitle,
-			&item.WorkoutStartedAt,
+			&item.SessionID,
+			&item.SessionTitle,
+			&item.SessionStartedAt,
 			&item.DisplayName,
 			&item.SetNumber,
 			&distanceKM,
@@ -598,15 +598,15 @@ func (s *Store) GetRun(ctx context.Context, id int64) (model.RunDetail, error) {
 	return run, nil
 }
 
-func insertWorkout(ctx context.Context, tx pgx.Tx, input model.WorkoutCreate) (int64, error) {
+func insertSession(ctx context.Context, tx pgx.Tx, input model.SessionCreate) (int64, error) {
 	rawPayload, err := marshalNullableJSON(input.RawPayload)
 	if err != nil {
 		return 0, err
 	}
 
-	var workoutID int64
+	var sessionID int64
 	err = tx.QueryRow(ctx, `
-		INSERT INTO workouts (
+		INSERT INTO sessions (
 			title,
 			started_at,
 			ended_at,
@@ -627,9 +627,9 @@ func insertWorkout(ctx context.Context, tx pgx.Tx, input model.WorkoutCreate) (i
 		nullableStringValue(input.SourceRef),
 		nullableStringValue(input.ExternalID),
 		rawPayload,
-	).Scan(&workoutID)
+	).Scan(&sessionID)
 	if err != nil {
-		return 0, fmt.Errorf("insert workout: %w", err)
+		return 0, fmt.Errorf("insert session: %w", err)
 	}
 
 	for i, exercise := range input.Exercises {
@@ -644,8 +644,8 @@ func insertWorkout(ctx context.Context, tx pgx.Tx, input model.WorkoutCreate) (i
 
 		var exerciseID int64
 		err = tx.QueryRow(ctx, `
-			INSERT INTO workout_exercises (
-				workout_id,
+			INSERT INTO session_exercises (
+				session_id,
 				order_index,
 				display_name,
 				base_name,
@@ -657,7 +657,7 @@ func insertWorkout(ctx context.Context, tx pgx.Tx, input model.WorkoutCreate) (i
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			RETURNING id
 		`,
-			workoutID,
+			sessionID,
 			orderIndex,
 			strings.TrimSpace(exercise.DisplayName),
 			strings.TrimSpace(exercise.BaseName),
@@ -667,7 +667,7 @@ func insertWorkout(ctx context.Context, tx pgx.Tx, input model.WorkoutCreate) (i
 			exercisePayload,
 		).Scan(&exerciseID)
 		if err != nil {
-			return 0, fmt.Errorf("insert workout exercise: %w", err)
+			return 0, fmt.Errorf("insert session exercise: %w", err)
 		}
 
 		for j, set := range exercise.Sets {
@@ -682,7 +682,7 @@ func insertWorkout(ctx context.Context, tx pgx.Tx, input model.WorkoutCreate) (i
 
 			_, err = tx.Exec(ctx, `
 				INSERT INTO exercise_sets (
-					workout_exercise_id,
+					session_exercise_id,
 					set_number,
 					set_type,
 					distance_km,
@@ -712,7 +712,7 @@ func insertWorkout(ctx context.Context, tx pgx.Tx, input model.WorkoutCreate) (i
 		}
 	}
 
-	return workoutID, nil
+	return sessionID, nil
 }
 
 func insertRun(ctx context.Context, tx pgx.Tx, input model.RunCreate) (int64, error) {
@@ -805,14 +805,14 @@ func insertRun(ctx context.Context, tx pgx.Tx, input model.RunCreate) (int64, er
 	return runID, nil
 }
 
-func softDeleteWorkout(ctx context.Context, tx pgx.Tx, id int64) error {
+func softDeleteSession(ctx context.Context, tx pgx.Tx, id int64) error {
 	tag, err := tx.Exec(ctx, `
-		UPDATE workouts
+		UPDATE sessions
 		SET deleted_at = NOW(), updated_at = NOW()
 		WHERE id = $1 AND deleted_at IS NULL
 	`, id)
 	if err != nil {
-		return fmt.Errorf("soft delete workout: %w", err)
+		return fmt.Errorf("soft delete session: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return api.ErrNotFound()
@@ -864,7 +864,7 @@ func nullTimePtr(value sql.NullTime) *time.Time {
 	return &value.Time
 }
 
-func validateWorkoutCreate(input model.WorkoutCreate) error {
+func validateSessionCreate(input model.SessionCreate) error {
 	if strings.TrimSpace(input.Title) == "" {
 		return fmt.Errorf("%w: title is required", api.ErrInvalidInput())
 	}

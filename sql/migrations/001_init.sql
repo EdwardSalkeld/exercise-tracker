@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS workouts (
+CREATE TABLE IF NOT EXISTS sessions (
     id BIGSERIAL PRIMARY KEY,
     title TEXT NOT NULL,
     started_at TIMESTAMPTZ NOT NULL,
@@ -12,16 +12,16 @@ CREATE TABLE IF NOT EXISTS workouts (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_workouts_external_id
-    ON workouts (source_type, external_id)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_external_id
+    ON sessions (source_type, external_id)
     WHERE external_id IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_workouts_started_at
-    ON workouts (started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sessions_started_at
+    ON sessions (started_at DESC);
 
-CREATE TABLE IF NOT EXISTS workout_exercises (
+CREATE TABLE IF NOT EXISTS session_exercises (
     id BIGSERIAL PRIMARY KEY,
-    workout_id BIGINT NOT NULL REFERENCES workouts(id) ON DELETE CASCADE,
+    session_id BIGINT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     order_index INTEGER NOT NULL,
     display_name TEXT NOT NULL,
     base_name TEXT NOT NULL,
@@ -30,18 +30,18 @@ CREATE TABLE IF NOT EXISTS workout_exercises (
     external_id TEXT,
     raw_payload JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (workout_id, order_index)
+    UNIQUE (session_id, order_index)
 );
 
-CREATE INDEX IF NOT EXISTS idx_workout_exercises_workout_id_order
-    ON workout_exercises (workout_id, order_index);
+CREATE INDEX IF NOT EXISTS idx_session_exercises_session_id_order
+    ON session_exercises (session_id, order_index);
 
-CREATE INDEX IF NOT EXISTS idx_workout_exercises_base_name
-    ON workout_exercises (base_name);
+CREATE INDEX IF NOT EXISTS idx_session_exercises_base_name
+    ON session_exercises (base_name);
 
 CREATE TABLE IF NOT EXISTS exercise_sets (
     id BIGSERIAL PRIMARY KEY,
-    workout_exercise_id BIGINT NOT NULL REFERENCES workout_exercises(id) ON DELETE CASCADE,
+    session_exercise_id BIGINT NOT NULL REFERENCES session_exercises(id) ON DELETE CASCADE,
     set_number INTEGER NOT NULL,
     set_type TEXT,
     distance_km DOUBLE PRECISION,
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS exercise_sets (
     custom_metric DOUBLE PRECISION,
     raw_payload JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (workout_exercise_id, set_number),
+    UNIQUE (session_exercise_id, set_number),
     CHECK (
         reps IS NOT NULL
         OR duration_seconds IS NOT NULL
@@ -61,8 +61,8 @@ CREATE TABLE IF NOT EXISTS exercise_sets (
     )
 );
 
-CREATE INDEX IF NOT EXISTS idx_exercise_sets_workout_exercise_id_set_number
-    ON exercise_sets (workout_exercise_id, set_number);
+CREATE INDEX IF NOT EXISTS idx_exercise_sets_session_exercise_id_set_number
+    ON exercise_sets (session_exercise_id, set_number);
 
 CREATE TABLE IF NOT EXISTS runs (
     id BIGSERIAL PRIMARY KEY,

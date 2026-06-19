@@ -1,4 +1,4 @@
-module github.com/EdwardSalkeld/workout-service
+module github.com/EdwardSalkeld/exercise-tracker
 
 go 1.25.0
 

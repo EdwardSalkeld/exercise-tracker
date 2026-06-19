@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-type WorkoutSummary struct {
+type SessionSummary struct {
 	ID            int64     `json:"id"`
 	Title         string    `json:"title"`
 	StartedAt     time.Time `json:"started_at"`
@@ -23,7 +23,7 @@ type ExerciseSet struct {
 	CustomMetric    *float64 `json:"custom_metric,omitempty"`
 }
 
-type WorkoutExercise struct {
+type SessionExercise struct {
 	ID          int64         `json:"id"`
 	OrderIndex  int           `json:"order_index"`
 	DisplayName string        `json:"display_name"`
@@ -33,17 +33,17 @@ type WorkoutExercise struct {
 	Sets        []ExerciseSet `json:"sets"`
 }
 
-type WorkoutDetail struct {
-	WorkoutSummary
+type SessionDetail struct {
+	SessionSummary
 	EndedAt    *time.Time        `json:"ended_at,omitempty"`
 	Notes      *string           `json:"notes,omitempty"`
 	SourceType string            `json:"source_type"`
 	SourceRef  *string           `json:"source_ref,omitempty"`
 	ExternalID *string           `json:"external_id,omitempty"`
-	Exercises  []WorkoutExercise `json:"exercises"`
+	Exercises  []SessionExercise `json:"exercises"`
 }
 
-type WorkoutCreate struct {
+type SessionCreate struct {
 	Title      string                  `json:"title"`
 	StartedAt  time.Time               `json:"started_at"`
 	EndedAt    *time.Time              `json:"ended_at,omitempty"`
@@ -52,10 +52,10 @@ type WorkoutCreate struct {
 	SourceRef  *string                 `json:"source_ref,omitempty"`
 	ExternalID *string                 `json:"external_id,omitempty"`
 	RawPayload any                     `json:"raw_payload,omitempty"`
-	Exercises  []WorkoutExerciseCreate `json:"exercises"`
+	Exercises  []SessionExerciseCreate `json:"exercises"`
 }
 
-type WorkoutExerciseCreate struct {
+type SessionExerciseCreate struct {
 	OrderIndex  int                 `json:"order_index,omitempty"`
 	DisplayName string              `json:"display_name"`
 	BaseName    string              `json:"base_name"`
@@ -79,9 +79,9 @@ type ExerciseSetCreate struct {
 }
 
 type ExerciseHistoryItem struct {
-	WorkoutID        int64     `json:"workout_id"`
-	WorkoutTitle     string    `json:"workout_title"`
-	WorkoutStartedAt time.Time `json:"workout_started_at"`
+	SessionID        int64     `json:"session_id"`
+	SessionTitle     string    `json:"session_title"`
+	SessionStartedAt time.Time `json:"session_started_at"`
 	DisplayName      string    `json:"display_name"`
 	SetNumber        int       `json:"set_number"`
 	DistanceKM       *float64  `json:"distance_km,omitempty"`

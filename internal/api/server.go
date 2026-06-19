@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/EdwardSalkeld/workout-service/internal/model"
+	"github.com/EdwardSalkeld/exercise-tracker/internal/model"
 )
 
 var errNotFound = errors.New("not found")
@@ -24,16 +24,16 @@ func ErrInvalidInput() error {
 
 type QueryService interface {
 	HealthCheck(ctx context.Context) error
-	ListWorkouts(ctx context.Context, limit int) ([]model.WorkoutSummary, error)
-	GetWorkout(ctx context.Context, id int64) (model.WorkoutDetail, error)
-	UpdateWorkout(ctx context.Context, id int64, input model.WorkoutCreate) (model.WorkoutDetail, error)
-	DeleteWorkout(ctx context.Context, id int64) error
+	ListSessions(ctx context.Context, limit int) ([]model.SessionSummary, error)
+	GetSession(ctx context.Context, id int64) (model.SessionDetail, error)
+	UpdateSession(ctx context.Context, id int64, input model.SessionCreate) (model.SessionDetail, error)
+	DeleteSession(ctx context.Context, id int64) error
 	ExerciseHistory(ctx context.Context, baseName string, limit int) ([]model.ExerciseHistoryItem, error)
 	ListRuns(ctx context.Context, limit int) ([]model.RunSummary, error)
 	GetRun(ctx context.Context, id int64) (model.RunDetail, error)
 	UpdateRun(ctx context.Context, id int64, input model.RunCreate) (model.RunDetail, error)
 	DeleteRun(ctx context.Context, id int64) error
-	CreateWorkout(ctx context.Context, input model.WorkoutCreate) (model.WorkoutDetail, error)
+	CreateSession(ctx context.Context, input model.SessionCreate) (model.SessionDetail, error)
 	CreateRun(ctx context.Context, input model.RunCreate) (model.RunDetail, error)
 }
 
@@ -48,8 +48,8 @@ func NewServer(store QueryService) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealthz)
-	mux.HandleFunc("/v1/workouts", s.handleWorkouts)
-	mux.HandleFunc("/v1/workouts/", s.handleWorkoutByID)
+	mux.HandleFunc("/v1/sessions", s.handleSessions)
+	mux.HandleFunc("/v1/sessions/", s.handleSessionByID)
 	mux.HandleFunc("/v1/exercises/", s.handleExerciseRoutes)
 	mux.HandleFunc("/v1/runs", s.handleRuns)
 	mux.HandleFunc("/v1/runs/", s.handleRunByID)
@@ -68,7 +68,7 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (s *Server) handleWorkouts(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		limit, err := parseLimit(r, 20, 100)
@@ -76,38 +76,38 @@ func (s *Server) handleWorkouts(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		workouts, err := s.store.ListWorkouts(r.Context(), limit)
+		sessions, err := s.store.ListSessions(r.Context(), limit)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "list workouts failed")
+			writeError(w, http.StatusInternalServerError, "list sessions failed")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"items": workouts,
+			"items": sessions,
 			"limit": limit,
 		})
 	case http.MethodPost:
-		var input model.WorkoutCreate
+		var input model.SessionCreate
 		if err := decodeJSON(r, &input); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		workout, err := s.store.CreateWorkout(r.Context(), input)
+		session, err := s.store.CreateSession(r.Context(), input)
 		if err != nil {
 			if errors.Is(err, errInvalidInput) {
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			writeError(w, http.StatusInternalServerError, "create workout failed")
+			writeError(w, http.StatusInternalServerError, "create session failed")
 			return
 		}
-		writeJSON(w, http.StatusCreated, workout)
+		writeJSON(w, http.StatusCreated, session)
 	default:
 		writeMethodNotAllowed(w)
 	}
 }
 
-func (s *Server) handleWorkoutByID(w http.ResponseWriter, r *http.Request) {
-	id, err := parseIDPath(r.URL.Path, "/v1/workouts/")
+func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDPath(r.URL.Path, "/v1/sessions/")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -115,44 +115,44 @@ func (s *Server) handleWorkoutByID(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		workout, err := s.store.GetWorkout(r.Context(), id)
+		session, err := s.store.GetSession(r.Context(), id)
 		if err != nil {
 			if errors.Is(err, errNotFound) {
-				writeError(w, http.StatusNotFound, "workout not found")
+				writeError(w, http.StatusNotFound, "session not found")
 				return
 			}
-			writeError(w, http.StatusInternalServerError, "get workout failed")
+			writeError(w, http.StatusInternalServerError, "get session failed")
 			return
 		}
-		writeJSON(w, http.StatusOK, workout)
+		writeJSON(w, http.StatusOK, session)
 	case http.MethodPut:
-		var input model.WorkoutCreate
+		var input model.SessionCreate
 		if err := decodeJSON(r, &input); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		workout, err := s.store.UpdateWorkout(r.Context(), id, input)
+		session, err := s.store.UpdateSession(r.Context(), id, input)
 		if err != nil {
 			if errors.Is(err, errNotFound) {
-				writeError(w, http.StatusNotFound, "workout not found")
+				writeError(w, http.StatusNotFound, "session not found")
 				return
 			}
 			if errors.Is(err, errInvalidInput) {
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			writeError(w, http.StatusInternalServerError, "update workout failed")
+			writeError(w, http.StatusInternalServerError, "update session failed")
 			return
 		}
-		writeJSON(w, http.StatusOK, workout)
+		writeJSON(w, http.StatusOK, session)
 	case http.MethodDelete:
-		err := s.store.DeleteWorkout(r.Context(), id)
+		err := s.store.DeleteSession(r.Context(), id)
 		if err != nil {
 			if errors.Is(err, errNotFound) {
-				writeError(w, http.StatusNotFound, "workout not found")
+				writeError(w, http.StatusNotFound, "session not found")
 				return
 			}
-			writeError(w, http.StatusInternalServerError, "delete workout failed")
+			writeError(w, http.StatusInternalServerError, "delete session failed")
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)

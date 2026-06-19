@@ -2,9 +2,9 @@ services:
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_DB: workout_service
-      POSTGRES_USER: workout
-      POSTGRES_PASSWORD: workout
+      POSTGRES_DB: exercise_tracker
+      POSTGRES_USER: exercise_tracker
+      POSTGRES_PASSWORD: exercise_tracker
     ports:
       - "5432:5432"
     volumes:
