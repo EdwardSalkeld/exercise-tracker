@@ -14,28 +14,38 @@ import (
 )
 
 type fakeStore struct {
-	healthErr         error
-	workouts          []model.WorkoutSummary
-	workout           model.WorkoutDetail
-	workoutErr        error
-	updatedWorkout    model.WorkoutDetail
-	updatedWorkoutErr error
-	deletedWorkoutErr error
-	createdWorkout    model.WorkoutDetail
-	createdWorkoutErr error
-	history           []model.ExerciseHistoryItem
-	historyErr        error
-	runs              []model.RunSummary
-	run               model.RunDetail
-	runErr            error
-	updatedRun        model.RunDetail
-	updatedRunErr     error
-	deletedRunErr     error
-	createdRun        model.RunDetail
-	createdRunErr     error
+	healthErr          error
+	syncState          model.SyncState
+	syncStateErr       error
+	upsertedSyncState  model.SyncState
+	upsertSyncStateErr error
+	workouts           []model.WorkoutSummary
+	workout            model.WorkoutDetail
+	workoutErr         error
+	updatedWorkout     model.WorkoutDetail
+	updatedWorkoutErr  error
+	deletedWorkoutErr  error
+	createdWorkout     model.WorkoutDetail
+	createdWorkoutErr  error
+	history            []model.ExerciseHistoryItem
+	historyErr         error
+	runs               []model.RunSummary
+	run                model.RunDetail
+	runErr             error
+	updatedRun         model.RunDetail
+	updatedRunErr      error
+	deletedRunErr      error
+	createdRun         model.RunDetail
+	createdRunErr      error
 }
 
 func (f fakeStore) HealthCheck(context.Context) error { return f.healthErr }
+func (f fakeStore) GetSyncState(context.Context, string, string) (model.SyncState, error) {
+	return f.syncState, f.syncStateErr
+}
+func (f fakeStore) UpsertSyncState(context.Context, string, string, string) (model.SyncState, error) {
+	return f.upsertedSyncState, f.upsertSyncStateErr
+}
 func (f fakeStore) ListWorkouts(context.Context, int) ([]model.WorkoutSummary, error) {
 	return f.workouts, nil
 }
@@ -91,6 +101,54 @@ func TestWorkoutNotFound(t *testing.T) {
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNotFound)
+	}
+}
+
+func TestGetSyncState(t *testing.T) {
+	t.Parallel()
+
+	updatedAt := time.Date(2026, 6, 22, 21, 0, 0, 0, time.UTC)
+	server := NewServer(fakeStore{
+		syncState: model.SyncState{
+			Namespace: "hevy",
+			Key:       "workouts_last_event_sync_completed_at",
+			Value:     "2026-06-22T20:59:00Z",
+			UpdatedAt: updatedAt,
+		},
+	})
+	request := httptest.NewRequest(http.MethodGet, "/v1/sync-state/hevy/workouts_last_event_sync_completed_at", nil)
+	recorder := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+}
+
+func TestPutSyncState(t *testing.T) {
+	t.Parallel()
+
+	updatedAt := time.Date(2026, 6, 22, 21, 0, 0, 0, time.UTC)
+	server := NewServer(fakeStore{
+		upsertedSyncState: model.SyncState{
+			Namespace: "hevy",
+			Key:       "workouts_last_event_sync_completed_at",
+			Value:     "2026-06-22T21:00:00Z",
+			UpdatedAt: updatedAt,
+		},
+	})
+	request := httptest.NewRequest(
+		http.MethodPut,
+		"/v1/sync-state/hevy/workouts_last_event_sync_completed_at",
+		strings.NewReader(`{"value":"2026-06-22T21:00:00Z"}`),
+	)
+	recorder := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
 }
 

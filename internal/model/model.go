@@ -2,6 +2,13 @@ package model
 
 import "time"
 
+type SyncState struct {
+	Namespace string    `json:"namespace"`
+	Key       string    `json:"key"`
+	Value     string    `json:"value"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type WorkoutSummary struct {
 	ID            int64     `json:"id"`
 	Title         string    `json:"title"`
