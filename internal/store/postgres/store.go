@@ -35,6 +35,38 @@ func (s *Store) HealthCheck(ctx context.Context) error {
 	return s.pool.Ping(ctx)
 }
 
+func (s *Store) GetSyncState(ctx context.Context, namespace string, key string) (model.SyncState, error) {
+	var state model.SyncState
+	err := s.pool.QueryRow(ctx, `
+		SELECT namespace, key, value, updated_at
+		FROM sync_state
+		WHERE namespace = $1 AND key = $2
+	`, namespace, key).Scan(&state.Namespace, &state.Key, &state.Value, &state.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.SyncState{}, api.ErrNotFound()
+		}
+		return model.SyncState{}, fmt.Errorf("query sync state: %w", err)
+	}
+	return state, nil
+}
+
+func (s *Store) UpsertSyncState(ctx context.Context, namespace string, key string, value string) (model.SyncState, error) {
+	var state model.SyncState
+	err := s.pool.QueryRow(ctx, `
+		INSERT INTO sync_state (namespace, key, value, updated_at)
+		VALUES ($1, $2, $3, NOW())
+		ON CONFLICT (namespace, key) DO UPDATE
+		SET value = EXCLUDED.value,
+			updated_at = NOW()
+		RETURNING namespace, key, value, updated_at
+	`, namespace, key, value).Scan(&state.Namespace, &state.Key, &state.Value, &state.UpdatedAt)
+	if err != nil {
+		return model.SyncState{}, fmt.Errorf("upsert sync state: %w", err)
+	}
+	return state, nil
+}
+
 func (s *Store) CreateWorkout(ctx context.Context, input model.WorkoutCreate) (model.WorkoutDetail, error) {
 	if err := validateWorkoutCreate(input); err != nil {
 		return model.WorkoutDetail{}, err

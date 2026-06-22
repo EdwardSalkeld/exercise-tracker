@@ -24,6 +24,8 @@ func ErrInvalidInput() error {
 
 type QueryService interface {
 	HealthCheck(ctx context.Context) error
+	GetSyncState(ctx context.Context, namespace string, key string) (model.SyncState, error)
+	UpsertSyncState(ctx context.Context, namespace string, key string, value string) (model.SyncState, error)
 	ListWorkouts(ctx context.Context, limit int) ([]model.WorkoutSummary, error)
 	GetWorkout(ctx context.Context, id int64) (model.WorkoutDetail, error)
 	UpdateWorkout(ctx context.Context, id int64, input model.WorkoutCreate) (model.WorkoutDetail, error)
@@ -48,12 +50,59 @@ func NewServer(store QueryService) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealthz)
+	mux.HandleFunc("/v1/sync-state/", s.handleSyncState)
 	mux.HandleFunc("/v1/workouts", s.handleWorkouts)
 	mux.HandleFunc("/v1/workouts/", s.handleWorkoutByID)
 	mux.HandleFunc("/v1/exercises/", s.handleExerciseRoutes)
 	mux.HandleFunc("/v1/runs", s.handleRuns)
 	mux.HandleFunc("/v1/runs/", s.handleRunByID)
 	return mux
+}
+
+func (s *Server) handleSyncState(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/v1/sync-state/")
+	path = strings.Trim(path, "/")
+	parts := strings.Split(path, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		writeError(w, http.StatusNotFound, "route not found")
+		return
+	}
+	namespace := parts[0]
+	key := parts[1]
+
+	switch r.Method {
+	case http.MethodGet:
+		state, err := s.store.GetSyncState(r.Context(), namespace, key)
+		if err != nil {
+			if errors.Is(err, errNotFound) {
+				writeError(w, http.StatusNotFound, "sync state not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "get sync state failed")
+			return
+		}
+		writeJSON(w, http.StatusOK, state)
+	case http.MethodPut:
+		var input struct {
+			Value string `json:"value"`
+		}
+		if err := decodeJSON(r, &input); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if strings.TrimSpace(input.Value) == "" {
+			writeError(w, http.StatusBadRequest, "value is required")
+			return
+		}
+		state, err := s.store.UpsertSyncState(r.Context(), namespace, key, input.Value)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "upsert sync state failed")
+			return
+		}
+		writeJSON(w, http.StatusOK, state)
+	default:
+		writeMethodNotAllowed(w)
+	}
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
