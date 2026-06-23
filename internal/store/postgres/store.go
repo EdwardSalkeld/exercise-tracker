@@ -101,12 +101,11 @@ func (s *Store) UpdateWorkout(ctx context.Context, id int64, input model.Workout
 	}
 	defer tx.Rollback(ctx)
 
-	if err := softDeleteWorkout(ctx, tx, id); err != nil {
+	if err := updateWorkoutRow(ctx, tx, id, input); err != nil {
 		return model.WorkoutDetail{}, err
 	}
 
-	workoutID, err := insertWorkout(ctx, tx, input)
-	if err != nil {
+	if err := replaceWorkoutExercises(ctx, tx, id, input.Exercises); err != nil {
 		return model.WorkoutDetail{}, err
 	}
 
@@ -114,7 +113,7 @@ func (s *Store) UpdateWorkout(ctx context.Context, id int64, input model.Workout
 		return model.WorkoutDetail{}, fmt.Errorf("commit workout update tx: %w", err)
 	}
 
-	return s.GetWorkout(ctx, workoutID)
+	return s.GetWorkout(ctx, id)
 }
 
 func (s *Store) DeleteWorkout(ctx context.Context, id int64) error {
@@ -436,12 +435,11 @@ func (s *Store) UpdateRun(ctx context.Context, id int64, input model.RunCreate) 
 	}
 	defer tx.Rollback(ctx)
 
-	if err := softDeleteRun(ctx, tx, id); err != nil {
+	if err := updateRunRow(ctx, tx, id, input); err != nil {
 		return model.RunDetail{}, err
 	}
 
-	runID, err := insertRun(ctx, tx, input)
-	if err != nil {
+	if err := replaceRunPoints(ctx, tx, id, input.Points); err != nil {
 		return model.RunDetail{}, err
 	}
 
@@ -449,7 +447,7 @@ func (s *Store) UpdateRun(ctx context.Context, id int64, input model.RunCreate) 
 		return model.RunDetail{}, fmt.Errorf("commit run update tx: %w", err)
 	}
 
-	return s.GetRun(ctx, runID)
+	return s.GetRun(ctx, id)
 }
 
 func (s *Store) DeleteRun(ctx context.Context, id int64) error {
@@ -664,84 +662,8 @@ func insertWorkout(ctx context.Context, tx pgx.Tx, input model.WorkoutCreate) (i
 		return 0, fmt.Errorf("insert workout: %w", err)
 	}
 
-	for i, exercise := range input.Exercises {
-		exercisePayload, err := marshalNullableJSON(exercise.RawPayload)
-		if err != nil {
-			return 0, err
-		}
-		orderIndex := exercise.OrderIndex
-		if orderIndex <= 0 {
-			orderIndex = i + 1
-		}
-
-		var exerciseID int64
-		err = tx.QueryRow(ctx, `
-			INSERT INTO workout_exercises (
-				workout_id,
-				order_index,
-				display_name,
-				base_name,
-				modifier,
-				notes,
-				external_id,
-				raw_payload
-			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-			RETURNING id
-		`,
-			workoutID,
-			orderIndex,
-			strings.TrimSpace(exercise.DisplayName),
-			strings.TrimSpace(exercise.BaseName),
-			nullableStringValue(exercise.Modifier),
-			nullableStringValue(exercise.Notes),
-			nullableStringValue(exercise.ExternalID),
-			exercisePayload,
-		).Scan(&exerciseID)
-		if err != nil {
-			return 0, fmt.Errorf("insert workout exercise: %w", err)
-		}
-
-		for j, set := range exercise.Sets {
-			setPayload, err := marshalNullableJSON(set.RawPayload)
-			if err != nil {
-				return 0, err
-			}
-			setNumber := set.SetNumber
-			if setNumber <= 0 {
-				setNumber = j + 1
-			}
-
-			_, err = tx.Exec(ctx, `
-				INSERT INTO exercise_sets (
-					workout_exercise_id,
-					set_number,
-					set_type,
-					distance_km,
-					weight_kg,
-					reps,
-					duration_seconds,
-					rpe,
-					custom_metric,
-					raw_payload
-				)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-			`,
-				exerciseID,
-				setNumber,
-				nullableStringValue(set.SetType),
-				set.DistanceKM,
-				set.WeightKG,
-				set.Reps,
-				set.DurationSeconds,
-				set.RPE,
-				set.CustomMetric,
-				setPayload,
-			)
-			if err != nil {
-				return 0, fmt.Errorf("insert exercise set: %w", err)
-			}
-		}
+	if err := replaceWorkoutExercises(ctx, tx, workoutID, input.Exercises); err != nil {
+		return 0, err
 	}
 
 	return workoutID, nil
@@ -801,7 +723,205 @@ func insertRun(ctx context.Context, tx pgx.Tx, input model.RunCreate) (int64, er
 		return 0, fmt.Errorf("insert run: %w", err)
 	}
 
-	for i, point := range input.Points {
+	if err := replaceRunPoints(ctx, tx, runID, input.Points); err != nil {
+		return 0, err
+	}
+
+	return runID, nil
+}
+
+func updateWorkoutRow(ctx context.Context, tx pgx.Tx, id int64, input model.WorkoutCreate) error {
+	rawPayload, err := marshalNullableJSON(input.RawPayload)
+	if err != nil {
+		return err
+	}
+
+	tag, err := tx.Exec(ctx, `
+		UPDATE workouts
+		SET
+			title = $2,
+			started_at = $3,
+			ended_at = $4,
+			notes = $5,
+			source_type = $6,
+			source_ref = $7,
+			external_id = $8,
+			raw_payload = $9,
+			updated_at = NOW()
+		WHERE id = $1 AND deleted_at IS NULL
+	`,
+		id,
+		strings.TrimSpace(input.Title),
+		input.StartedAt,
+		input.EndedAt,
+		nullableStringValue(input.Notes),
+		strings.TrimSpace(input.SourceType),
+		nullableStringValue(input.SourceRef),
+		nullableStringValue(input.ExternalID),
+		rawPayload,
+	)
+	if err != nil {
+		return fmt.Errorf("update workout: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return api.ErrNotFound()
+	}
+	return nil
+}
+
+func replaceWorkoutExercises(ctx context.Context, tx pgx.Tx, workoutID int64, exercises []model.WorkoutExerciseCreate) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM workout_exercises WHERE workout_id = $1`, workoutID); err != nil {
+		return fmt.Errorf("delete workout exercises: %w", err)
+	}
+
+	for i, exercise := range exercises {
+		exercisePayload, err := marshalNullableJSON(exercise.RawPayload)
+		if err != nil {
+			return err
+		}
+		orderIndex := exercise.OrderIndex
+		if orderIndex <= 0 {
+			orderIndex = i + 1
+		}
+
+		var exerciseID int64
+		err = tx.QueryRow(ctx, `
+			INSERT INTO workout_exercises (
+				workout_id,
+				order_index,
+				display_name,
+				base_name,
+				modifier,
+				notes,
+				external_id,
+				raw_payload
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			RETURNING id
+		`,
+			workoutID,
+			orderIndex,
+			strings.TrimSpace(exercise.DisplayName),
+			strings.TrimSpace(exercise.BaseName),
+			nullableStringValue(exercise.Modifier),
+			nullableStringValue(exercise.Notes),
+			nullableStringValue(exercise.ExternalID),
+			exercisePayload,
+		).Scan(&exerciseID)
+		if err != nil {
+			return fmt.Errorf("insert workout exercise: %w", err)
+		}
+
+		for j, set := range exercise.Sets {
+			setPayload, err := marshalNullableJSON(set.RawPayload)
+			if err != nil {
+				return err
+			}
+			setNumber := set.SetNumber
+			if setNumber <= 0 {
+				setNumber = j + 1
+			}
+
+			_, err = tx.Exec(ctx, `
+				INSERT INTO exercise_sets (
+					workout_exercise_id,
+					set_number,
+					set_type,
+					distance_km,
+					weight_kg,
+					reps,
+					duration_seconds,
+					rpe,
+					custom_metric,
+					raw_payload
+				)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			`,
+				exerciseID,
+				setNumber,
+				nullableStringValue(set.SetType),
+				set.DistanceKM,
+				set.WeightKG,
+				set.Reps,
+				set.DurationSeconds,
+				set.RPE,
+				set.CustomMetric,
+				setPayload,
+			)
+			if err != nil {
+				return fmt.Errorf("insert exercise set: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func updateRunRow(ctx context.Context, tx pgx.Tx, id int64, input model.RunCreate) error {
+	rawPayload, err := marshalNullableJSON(input.RawPayload)
+	if err != nil {
+		return err
+	}
+
+	tag, err := tx.Exec(ctx, `
+		UPDATE runs
+		SET
+			title = $2,
+			sport = $3,
+			sub_sport = $4,
+			started_at = $5,
+			ended_at = $6,
+			duration_seconds = $7,
+			distance_m = $8,
+			total_calories = $9,
+			total_ascent_m = $10,
+			total_descent_m = $11,
+			start_lat = $12,
+			start_lon = $13,
+			end_lat = $14,
+			end_lon = $15,
+			source_type = $16,
+			source_ref = $17,
+			external_id = $18,
+			raw_payload = $19,
+			updated_at = NOW()
+		WHERE id = $1 AND deleted_at IS NULL
+	`,
+		id,
+		strings.TrimSpace(input.Title),
+		strings.TrimSpace(input.Sport),
+		nullableStringValue(input.SubSport),
+		input.StartedAt,
+		input.EndedAt,
+		input.DurationSeconds,
+		input.DistanceM,
+		input.TotalCalories,
+		input.TotalAscentM,
+		input.TotalDescentM,
+		input.StartLat,
+		input.StartLon,
+		input.EndLat,
+		input.EndLon,
+		strings.TrimSpace(input.SourceType),
+		nullableStringValue(input.SourceRef),
+		nullableStringValue(input.ExternalID),
+		rawPayload,
+	)
+	if err != nil {
+		return fmt.Errorf("update run: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return api.ErrNotFound()
+	}
+	return nil
+}
+
+func replaceRunPoints(ctx context.Context, tx pgx.Tx, runID int64, points []model.RunPointCreate) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM run_points WHERE run_id = $1`, runID); err != nil {
+		return fmt.Errorf("delete run points: %w", err)
+	}
+
+	for i, point := range points {
 		pointIndex := point.PointIndex
 		if pointIndex <= 0 {
 			pointIndex = i + 1
@@ -830,11 +950,11 @@ func insertRun(ctx context.Context, tx pgx.Tx, input model.RunCreate) (int64, er
 			point.SpeedMS,
 		)
 		if err != nil {
-			return 0, fmt.Errorf("insert run point: %w", err)
+			return fmt.Errorf("insert run point: %w", err)
 		}
 	}
 
-	return runID, nil
+	return nil
 }
 
 func softDeleteWorkout(ctx context.Context, tx pgx.Tx, id int64) error {
