@@ -184,6 +184,32 @@ func (s *Store) ListWorkouts(ctx context.Context, limit int) ([]model.WorkoutSum
 	return items, nil
 }
 
+func (s *Store) ListActiveWorkoutIDsBySourceType(ctx context.Context, sourceType string) (map[string]int64, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, external_id
+		FROM workouts
+		WHERE source_type = $1 AND deleted_at IS NULL AND external_id IS NOT NULL
+	`, strings.TrimSpace(sourceType))
+	if err != nil {
+		return nil, fmt.Errorf("query active workouts by source_type: %w", err)
+	}
+	defer rows.Close()
+
+	result := map[string]int64{}
+	for rows.Next() {
+		var id int64
+		var externalID string
+		if err := rows.Scan(&id, &externalID); err != nil {
+			return nil, fmt.Errorf("scan active workout source row: %w", err)
+		}
+		result[externalID] = id
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate active workout source rows: %w", err)
+	}
+	return result, nil
+}
+
 func (s *Store) GetWorkout(ctx context.Context, id int64) (model.WorkoutDetail, error) {
 	var workout model.WorkoutDetail
 	var endedAt sql.NullTime

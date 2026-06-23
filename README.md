@@ -13,6 +13,14 @@ The initial write surface is deliberately direct and private-network friendly:
 nested POST requests for workouts and runs, without auth, background jobs, or
 import-specific abstractions yet.
 
+The repo now also contains the first tracker-owned Hevy sync path:
+
+- `sync-hevy` reads the Hevy API directly
+- it stores the incremental resume marker in Postgres `sync_state`
+- it reconciles Hevy-sourced workouts by `external_id`
+- it follows the current versioned update contract, where `PUT` creates a new
+  active row and the old row is soft-deleted
+
 ## Endpoints
 
 - `GET /healthz`
@@ -75,6 +83,19 @@ Run the service:
 export EXERCISE_TRACKER_DATABASE_URL=postgres://workout:workout@127.0.0.1:5432/exercise_tracker?sslmode=disable
 go run ./cmd/exercise-tracker
 ```
+
+Run a Hevy sync manually:
+
+```sh
+export EXERCISE_TRACKER_HEVY_API_KEY=...
+go run ./cmd/exercise-tracker sync-hevy
+```
+
+Useful flags:
+
+- `--full` to ignore the stored marker and reconcile from the full Hevy workout list
+- `--since <timestamp>` to force an events sync from a specific ISO 8601 timestamp
+- `--page-size <n>` to adjust the Hevy API page size
 
 Run formatting and tests:
 
