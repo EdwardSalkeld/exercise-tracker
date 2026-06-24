@@ -250,7 +250,7 @@ func TestUpdateWorkout(t *testing.T) {
 	server := NewServer(fakeStore{
 		updatedWorkout: model.WorkoutDetail{
 			WorkoutSummary: model.WorkoutSummary{
-				ID:        12,
+				ID:        11,
 				Title:     "Upper v2",
 				StartedAt: startedAt,
 			},
@@ -334,7 +334,7 @@ func TestUpdateRun(t *testing.T) {
 	server := NewServer(fakeStore{
 		updatedRun: model.RunDetail{
 			RunSummary: model.RunSummary{
-				ID:              10,
+				ID:              9,
 				Title:           "Morning Run v2",
 				Sport:           "running",
 				StartedAt:       startedAt,
